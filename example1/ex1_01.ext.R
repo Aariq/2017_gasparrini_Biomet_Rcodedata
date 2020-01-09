@@ -17,10 +17,10 @@
 ################################################################################
 
 # LOAD PACKAGES AND FUNCTIONS
-library(dlnm) ; library(mgcv) ; library(splines) ; library(tsModel)
+library(dlnm) ; library(mgcv) ; library(splines) ; library(tsModel); library(here)
 
 # LOAD DATA
-london <- read.csv("london.csv")
+london <- read.csv(here("example1","london.csv"))
 
 ################################################################################
 # GLM WITH KNOTS SPECIFIED A PRIORI (GASPARRINI BMCmrm 2014)
@@ -28,8 +28,12 @@ london <- read.csv("london.csv")
 # DEFINE THE CROSS-BASIS
 vk <- equalknots(london$tmean,nk=2)
 lk <- logknots(25,nk=3)
-cbglm1 <- crossbasis(london$tmean, lag=25, argvar=list(fun="bs",degree=2,
-  knots=vk), arglag=list(knots=lk))
+cbglm1 <- crossbasis(
+  london$tmean,
+  lag=25,
+  argvar=list(fun="bs",degree=2,knots=vk), 
+  arglag=list(knots=lk)
+  )
 summary(cbglm1)
 
 # RUN THE MODEL AND PREDICT
@@ -102,8 +106,12 @@ plot(predslglm2,var=29,xlab="Lag (days)",ylab="RR",ylim=c(0.9,1.4),lwd=1.5,
 # DEFINE THE CROSS-BASIS
 # NB: df IN argvar SET TO 9, AS INTERCEPT IS EXCLUDED AUTOMATICALLY
 # (FOR COMPATIBILITY WITH INTERNAL METHOD)
-cbgam1 <- crossbasis(london$tmean,lag=25,argvar=list(fun="ps",df=9),
-  arglag=list(fun="ps",df=10))
+cbgam1 <- crossbasis(
+  london$tmean,
+  lag=25,
+  argvar=list(fun="ps",df=9),
+  arglag=list(fun="ps",df=10)
+  )
 summary(cbgam1)
 
 # DEFINE THE PENALTY MATRICES
@@ -111,9 +119,13 @@ cbgam1Pen <- cbPen(cbgam1)
 
 # RUN THE GAM MODEL AND PREDICT (TAKES ~34sec IN A 2.4 GHz PC)
 system.time({
-gam1 <- gam(death~cbgam1+ns(time,10*14)+dow,family=quasipoisson(),london,
-  paraPen=list(cbgam1=cbgam1Pen), method='REML')
+gam1 <- gam(death ~ cbgam1 + ns(time,10*14) + dow,
+            family=quasipoisson(),
+            london,
+            paraPen=list(cbgam1=cbgam1Pen),
+            method='REML')
 })
+
 pred3dgam1 <- crosspred(cbgam1,gam1,at=-3:29,cen=20)
 predslgam1 <- crosspred(cbgam1,gam1,by=0.2,bylag=0.2,cen=20)
 
@@ -135,24 +147,37 @@ plot(predslgam1,var=29,xlab="Lag (days)",ylab="RR",ylim=c(0.9,1.4),lwd=1.5,
 
 # DEFINE THE CROSS-BASIS
 # PS: EXCLUDE THE DEFAULT PENALTY FROM THE LAG-RESPONSE FUNCTION WITH fx=T
-cbgam2 <- crossbasis(london$tmean, lag=25, argvar=list(fun="ps",df=9),
-  arglag=list(fun="ps",df=10,fx=T))
+cbgam2 <- crossbasis(
+  london$tmean,
+  lag=25,
+  argvar=list(fun="ps",df=9),
+  arglag=list(fun="ps",df=10,fx=T)
+  )
 summary(cbgam2)
 
 # DEFINE THE DOUBLY VARYING PENALTY MATRICES
+
 # VARYING DIFFERENCE PENALTY APPLIED TO LAGS (EQ. 8b)
-C <- do.call('onebasis',c(list(x=0:25,fun="ps",df=10,intercept=T)))
-D <- diff(diag(25+1),diff=2)
-P <- diag((seq(0,25-2))^2)
+C <- onebasis(x=0:25,
+              fun="ps",
+              df=10,
+              intercept=T)
+
+D <- diff(diag(25 + 1), diff = 2)
+P <- diag((seq(0, 25-2))^2)
 Slag1 <- t(C) %*% t(D) %*% P %*% D %*% C
+
 # VARYING RIDGE PENALTY APPLIED TO COEFFICIENTS (Eq. 7a)
-Slag2 <- diag(rep(0:1,c(6,4)))
+Slag2 <- diag(rep(0:1, c(6,4)))
 cbgam2Pen <- cbPen(cbgam2,addSlag=list(Slag1,Slag2))
 
 # RUN THE GAM MODEL AND PREDICT (TAKES ~14sec IN A 2.4 GHz PC)
 system.time({
-gam2 <- gam(death~cbgam2+ns(time, 10*14)+dow,family=quasipoisson(),london,
-  paraPen=list(cbgam2=cbgam2Pen), method='REML')
+gam2 <- gam(death ~ cbgam2 + ns(time, 10*14) + dow,
+            family=quasipoisson(),
+            london,
+            paraPen=list(cbgam2=cbgam2Pen),
+            method='REML')
 })
 pred3dgam2 <- crosspred(cbgam2,gam2,at=-3:29,cen=20)
 predslgam2 <- crosspred(cbgam2,gam2,by=0.2,bylag=0.2,cen=20)
@@ -175,12 +200,16 @@ plot(predslgam2,var=29,xlab="Lag (days)",ylab="RR",ylim=c(0.9,1.4),lwd=1.5,
 
 # DEFINE THE CROSS-BASIS
 # NB: DOUBLE THRESHOLD AS EXPOSURE-RESPONSE
-cbgam3 <- crossbasis(london$tmean, lag=25, argvar=list(fun="thr",thr=c(17,21)),
-  arglag=list(fun="ps",df=10))
+cbgam3 <- crossbasis(
+  london$tmean,
+  lag=25,
+  argvar=list(fun="thr",thr=c(17,21)),
+  arglag=list(fun="ps",df=10)
+  )
 summary(cbgam3)
 
 # USE THE PENALTY MATRICES DEFINE ABOVE
-cbgam3Pen <- cbPen(cbgam3,addSlag=list(Slag1,Slag2))
+cbgam3Pen <- cbPen(cbgam3, addSlag = list(Slag1,Slag2))
 
 # RUN THE GAM MODEL AND PREDICT (TAKES ~75sec IN A 2.4 GHz PC)
 system.time({
