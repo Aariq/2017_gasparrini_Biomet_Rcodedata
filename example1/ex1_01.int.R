@@ -17,10 +17,10 @@
 ################################################################################
 
 # LOAD PACKAGES AND FUNCTIONS
-library(dlnm) ; library(mgcv) ; library(splines) ; library(tsModel)
+library(dlnm) ; library(mgcv) ; library(splines) ; library(tsModel) ; library(here)
 
 # LOAD DATA
-london <- read.csv("london.csv")
+london <- read.csv(here("example1","london.csv"))
 
 ################################################################################
 # GLM WITH KNOTS SPECIFIED A PRIORI (GASPARRINI BMCmrm 2014)
@@ -28,8 +28,11 @@ london <- read.csv("london.csv")
 # DEFINE THE CROSS-BASIS
 vk <- equalknots(london$tmean,nk=2)
 lk <- logknots(25,nk=3)
-cbglm1 <- crossbasis(london$tmean, lag=25, argvar=list(fun="bs",degree=2,
-  knots=vk), arglag=list(knots=lk))
+cbglm1 <- crossbasis(
+  london$tmean,
+  lag=25,
+  argvar=list(fun="bs",degree=2,knots=vk), 
+  arglag=list(knots=lk))
 summary(cbglm1)
 
 # RUN THE MODEL AND PREDICT
@@ -100,17 +103,19 @@ plot(predslglm2,var=29,xlab="Lag (days)",ylab="RR",ylim=c(0.9,1.4),lwd=1.5,
 # GAM WITH DEFAULT PENALTIES
 
 # DEFINE MATRICES TO BE INCLUDED AS TERMS IN THE SMOOTHER
-Q <- Lag (london$tmean,0:25)
-L <- matrix(0:25,nrow(Q),ncol(Q),byrow=TRUE)
+Q <- Lag(london$tmean, 0:25) #temperature data, lagged
+L <- matrix(0:25,nrow(Q),ncol(Q),byrow=TRUE) #matrix of 0-25
 
 # RUN THE GAM MODEL AND PREDICT (TAKES ~17sec IN A 2.4 GHz PC)
 # SET 'cb' SMOOTHER WITH DIMENSION 10 FOR EACH SPACE (MINUS CONSTRAINTS)
 system.time({
-gam1 <- gam(death~s(Q,L,bs="cb",k=10)+ns(time,10*14)+dow,family=quasipoisson(),
-  london,method='REML')
+gam1 <- gam(death ~ s(Q, L, bs="cb", k=10) + ns(time, 10*14) + dow,
+            family=quasipoisson(),
+            london,
+            method='REML')
 })
-pred3dgam1 <- crosspred("Q",gam1,at=-3:29,cen=20)
-predslgam1 <- crosspred("Q",gam1,by=0.2,bylag=0.2,cen=20)
+pred3dgam1 <- crosspred("Q", gam1, at = -3:29, cen = 20)
+predslgam1 <- crosspred("Q", gam1, by=0.2, bylag=0.2, cen=20)
 
 # CHECK CONVERGENCE, SMOOTHING PARAMETERS AND EDF
 gam1$converged
@@ -134,6 +139,7 @@ C <- do.call('onebasis',c(list(x=0:25,fun="ps",df=10,intercept=T)))
 D <- diff(diag(25+1),diff=2)
 P <- diag((seq(0,25-2))^2)
 Slag1 <- t(C) %*% t(D) %*% P %*% D %*% C
+
 # VARYING RIDGE PENALTY APPLIED TO COEFFICIENTS (Eq. 7a)
 Slag2 <- diag(rep(0:1,c(6,4)))
 
@@ -142,8 +148,15 @@ Slag2 <- diag(rep(0:1,c(6,4)))
 # ADD ADDITIONAL PENALTY MATRICES FOR THE LAG SPACE IN addSlag OBJECT IN xt
 xt <- list(addSlag=list(Slag1,Slag2))
 system.time({
-gam2 <- gam(death~s(Q,L,bs="cb",k=10,fx=c(F,T),xt=xt)+ns(time, 10*14)+dow,
-  family=quasipoisson(),london, method='REML')
+  
+gam2 <- gam(death ~ s(Q, L, #two dimensions effect of temp and effect of lag
+                      bs="cs", k=10,
+                      fx=c(F,T), #remove default penalty from lag
+                      xt = xt #add aditional penalties that you've created yourself to lag
+                      ) + ns(time, 10*14) + dow,
+  family=quasipoisson(),
+  london,
+  method='REML')
 })
 pred3dgam2 <- crosspred("Q",gam2,at=-3:29,cen=20)
 predslgam2 <- crosspred("Q",gam2,by=0.2,bylag=0.2,cen=20)
@@ -169,7 +182,7 @@ plot(predslgam2,var=29,xlab="Lag (days)",ylab="RR",ylim=c(0.9,1.4),lwd=1.5,
 thr <- dlnm:::thr
 xt=list(addSlag=list(Slag1,Slag2),argvar=list(fun="thr",thr=c(17,21)))
 system.time({
-gam3 <- gam(death~s(Q,L,bs="cb",k=10,fx=c(F,T),xt=xt)+ns(time, 10*14)+dow,
+gam3 <- gam(death~s(Q,L,bs="cs",k=10,fx=c(F,T),xt=xt)+ns(time, 10*14)+dow,
   family=quasipoisson(),london, method='REML')
 })
 pred3dgam3 <- crosspred("Q",gam3,at=-3:29)

@@ -151,13 +151,13 @@ cbgam2 <- crossbasis(
   london$tmean,
   lag=25,
   argvar=list(fun="ps",df=9),
-  arglag=list(fun="ps",df=10,fx=T)
+  arglag=list(fun="ps",df=10,fx=T) #fx = T removes the penalization
   )
 summary(cbgam2)
 
 # DEFINE THE DOUBLY VARYING PENALTY MATRICES
 
-# VARYING DIFFERENCE PENALTY APPLIED TO LAGS (EQ. 8b)
+# VARYING DIFFERENCE PENALTY APPLIED TO LAGS (EQ. 8b) this does the shrinkage part??
 C <- onebasis(x=0:25,
               fun="ps",
               df=10,
@@ -167,7 +167,8 @@ D <- diff(diag(25 + 1), diff = 2)
 P <- diag((seq(0, 25-2))^2)
 Slag1 <- t(C) %*% t(D) %*% P %*% D %*% C
 
-# VARYING RIDGE PENALTY APPLIED TO COEFFICIENTS (Eq. 7a)
+# VARYING RIDGE PENALTY APPLIED TO COEFFICIENTS (Eq. 7a) 
+# this makes it so older lags are less likely to have an effect
 Slag2 <- diag(rep(0:1, c(6,4)))
 cbgam2Pen <- cbPen(cbgam2,addSlag=list(Slag1,Slag2))
 
@@ -231,5 +232,5 @@ plot(predslgam3,"overall",ylab="RR",xlab="Temperature (C)",xlim=c(-5,30),
   ylim=c(0.8,2.2),lwd=1.5,main="Mix of penalized and unpenalized")
 plot(predslgam3,var=29,xlab="Lag (days)",ylab="RR",ylim=c(0.9,1.4),lwd=1.5,
   main="Mix of penalized and unpenalized")
-
+  
 #
